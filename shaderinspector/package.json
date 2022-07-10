@@ -10,14 +10,14 @@
 		"Other"
 	],
 	"activationEvents": [
-        "onCommand:shaderinspector.helloWorld"
+        "onCommand:shaderinspector.buildWithDXC"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
 			{
-				"command": "shaderinspector.helloWorld",
-				"title": "Hello World"
+				"command": "shaderinspector.buildWithDXC",
+				"title": "Build With DXC"
 			}
 		]
 	},
