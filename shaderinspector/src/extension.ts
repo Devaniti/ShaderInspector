@@ -24,13 +24,26 @@ interface ShaderQuickPick extends vscode.QuickPickItem {
 	Shader : ShaderDeclaration; 
 }
 
+function IsDXCAvailable() : boolean
+{
+	try
+	{
+		execFileSync("dxc", ["--help"]);
+	}
+	catch (err)
+	{
+		return false;
+	}
+	return true;
+}
+
 function compileFileFromDeclaration(fullPath : string, shaderDeclaration : ShaderDeclaration) : void
 {
 	let tempDir : string | null = process.env["tmp"] ?? null
 
 	if (tempDir == null)
 	{
-		vscode.window.showInformationMessage('Can\'t get temp directory')
+		vscode.window.showErrorMessage('Can\'t get temp directory')
 		return
 	}
 
@@ -72,13 +85,13 @@ function compileFileFromText(fullPath : string, shaderText : string) : void
 	let shaderDeclarationMatch : RegExpMatchArray | null = shaderText?.match(shaderDeclarationRegexp)
 	if (shaderDeclarationMatch == null)
 	{
-		vscode.window.showInformationMessage('No shader declaration')
+		vscode.window.showErrorMessage('No shader declaration')
 		return
 	}
 	let shaderDeclarationJSONString : string | null = shaderDeclarationMatch.groups ? shaderDeclarationMatch.groups["ShaderJson"] : null
 	if (shaderDeclarationJSONString == null)
 	{
-		vscode.window.showInformationMessage('Missing shader declaration regexp match group')
+		vscode.window.showErrorMessage('Missing shader declaration regexp match group')
 		return
 	}
 	let shaderDeclaration : FileShaderDeclarations
@@ -88,13 +101,13 @@ function compileFileFromText(fullPath : string, shaderText : string) : void
 	}
 	catch (err)
 	{
-		vscode.window.showInformationMessage("Parsing shader declaration JSON failed: " + err)
+		vscode.window.showErrorMessage("Parsing shader declaration JSON failed: " + err)
 		return
 	}
 
 	if (shaderDeclaration.Shaders.length == 0)
 	{
-		vscode.window.showInformationMessage("Missing shader declarations")
+		vscode.window.showErrorMessage("Missing shader declarations")
 	}
 
 	if (shaderDeclaration.Shaders.length == 1)
@@ -130,6 +143,11 @@ function compileFileFromText(fullPath : string, shaderText : string) : void
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+	if (!IsDXCAvailable())
+	{
+		vscode.window.showInformationMessage('DXC is not in PATH. ShaderInspector won\'t work.')
+	}
+
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
 	// The commandId parameter must match the command field in package.json
@@ -138,7 +156,7 @@ export function activate(context: vscode.ExtensionContext) {
 		// Display a message box to the user
 		if (vscode.window.activeTextEditor == null)
 		{
-			vscode.window.showInformationMessage('No active text editor to compile code in')
+			vscode.window.showErrorMessage('No active text editor to compile code in')
 			return
 		}
 
