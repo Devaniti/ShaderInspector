@@ -22,20 +22,26 @@
 		"url": "https://github.com/Devaniti/ShaderInspector",
 		"type": "git"
 	},
+	"icon": "images/icon.png",
+	"keywords": [
+		"shader",
+		"hlsl"
+	],
+	"license": "SEE LICENSE IN LICENSE",
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
 			{
 				"command": "shaderinspector.compileWithDXC",
-				"title": "ShaderInspector: Compile With DXC"
+				"title": "Shader Inspector: Compile With DXC"
 			},
 			{
 				"command": "shaderinspector.repeatLastCompilation",
-				"title": "ShaderInspector: Repeat last compilation"
+				"title": "Shader Inspector: Repeat last compilation"
 			},
 			{
 				"command": "shaderinspector.addShaderDeclaration",
-				"title": "ShaderInspector: Repeat last compilation"
+				"title": "Shader Inspector: Add shader declaration"
 			}
 		],
 		"keybindings": [
