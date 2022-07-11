@@ -19,6 +19,12 @@ type FileShaderDeclarations =
 		Shaders: Array<ShaderDeclaration>
 	}
 
+type ShaderCompilationData =
+	{
+		fileName: string
+		shaderDeclaration: ShaderDeclaration
+	}
+
 interface ShaderQuickPick extends vscode.QuickPickItem {
 	Shader: ShaderDeclaration
 }
@@ -53,7 +59,19 @@ body {
 	return html
 }
 
-function compileFileFromDeclaration(fullPath: string, shaderDeclaration: ShaderDeclaration): void {
+var lastCompiled: ShaderCompilationData | null = null;
+
+function repeatLastCompilation(): void {
+	if (lastCompiled == null) {
+		vscode.window.showErrorMessage('Haven\'t compiled anything yet')
+		return;
+	}
+	compileFileFromDeclaration(lastCompiled)
+}
+
+function compileFileFromDeclaration(toCompile: ShaderCompilationData): void {
+	lastCompiled = toCompile
+
 	let tempDir: string | null = process.env["tmp"] ?? null
 
 	if (tempDir == null) {
@@ -64,13 +82,13 @@ function compileFileFromDeclaration(fullPath: string, shaderDeclaration: ShaderD
 	let args: Array<string> =
 		[
 			"-nologo",
-			"-T " + shaderDeclaration.ShaderType + "_" + shaderDeclaration.ShaderModel,
-			"-O" + shaderDeclaration.Optimization,
-			fullPath
+			"-T " + toCompile.shaderDeclaration.ShaderType + "_" + toCompile.shaderDeclaration.ShaderModel,
+			"-O" + toCompile.shaderDeclaration.Optimization,
+			toCompile.fileName
 		]
-	if (shaderDeclaration.EntryPoint) args.push("-E " + shaderDeclaration.EntryPoint)
-	args = args.concat(shaderDeclaration.Defines.map(def => "-D" + def))
-	args = args.concat(shaderDeclaration.AdditionalArgs)
+	if (toCompile.shaderDeclaration.EntryPoint) args.push("-E " + toCompile.shaderDeclaration.EntryPoint)
+	args = args.concat(toCompile.shaderDeclaration.Defines.map(def => "-D" + def))
+	args = args.concat(toCompile.shaderDeclaration.AdditionalArgs)
 	let outputText: string = ""
 
 	try {
@@ -83,7 +101,7 @@ function compileFileFromDeclaration(fullPath: string, shaderDeclaration: ShaderD
 		}
 	}
 
-	let webview = vscode.window.createWebviewPanel(shaderDeclaration.ShaderName, shaderDeclaration.ShaderName, vscode.ViewColumn.One)
+	let webview = vscode.window.createWebviewPanel(toCompile.shaderDeclaration.ShaderName, toCompile.shaderDeclaration.ShaderName, vscode.ViewColumn.One)
 	webview.webview.html = TextToHTML(outputText)
 }
 
@@ -113,7 +131,7 @@ function compileFileFromText(fullPath: string, shaderText: string): void {
 	}
 
 	if (shaderDeclaration.Shaders.length == 1) {
-		compileFileFromDeclaration(fullPath, shaderDeclaration.Shaders[0])
+		compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: shaderDeclaration.Shaders[0] })
 	}
 
 	let shaderOptions: Array<ShaderQuickPick> = []
@@ -134,7 +152,7 @@ function compileFileFromText(fullPath: string, shaderText: string): void {
 		if (selection == null) {
 			return
 		}
-		compileFileFromDeclaration(fullPath, selection.Shader)
+		compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: selection.Shader })
 	})
 }
 
@@ -148,7 +166,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
 	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('shaderinspector.buildWithDXC', () => {
+	context.subscriptions.push(vscode.commands.registerTextEditorCommand('shaderinspector.compileWithDXC', () => {
 		// The code you place here will be executed every time your command is executed
 		// Display a message box to the user
 		if (vscode.window.activeTextEditor == null) {
@@ -160,9 +178,11 @@ export function activate(context: vscode.ExtensionContext) {
 		let shaderCode: string = vscode.window.activeTextEditor.document.getText()
 
 		compileFileFromText(shaderFileName, shaderCode)
-	})
+	}))
 
-	context.subscriptions.push(disposable)
+	context.subscriptions.push(vscode.commands.registerCommand('shaderinspector.repeatLastCompilation', () => {
+		repeatLastCompilation()
+	}))
 }
 
 // this method is called when your extension is deactivated

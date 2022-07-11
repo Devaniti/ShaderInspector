@@ -10,14 +10,30 @@
 		"Other"
 	],
 	"activationEvents": [
-        "onCommand:shaderinspector.buildWithDXC"
+        "onCommand:shaderinspector.compileWithDXC",
+        "onCommand:shaderinspector.repeatLastCompilation"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
 			{
-				"command": "shaderinspector.buildWithDXC",
-				"title": "Build With DXC"
+				"command": "shaderinspector.compileWithDXC",
+				"title": "ShaderInspector: Compile With DXC"
+			},
+			{
+				"command": "shaderinspector.repeatLastCompilation",
+				"title": "ShaderInspector: Repeat last compilation"
+			}
+		],
+		"keybindings" : [
+			{
+				"command": "shaderinspector.compileWithDXC",
+				"key": "Alt+O",
+				"when": "editorLangId == 'hlsl' && editorTextFocus"
+			},
+			{
+				"command": "shaderinspector.repeatLastCompilation",
+				"key": "Alt+I"
 			}
 		]
 	},
