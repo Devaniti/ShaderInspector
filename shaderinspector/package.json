@@ -11,7 +11,8 @@
 	],
 	"activationEvents": [
         "onCommand:shaderinspector.compileWithDXC",
-        "onCommand:shaderinspector.repeatLastCompilation"
+        "onCommand:shaderinspector.repeatLastCompilation",
+        "onCommand:shaderinspector.addShaderDeclaration"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -22,6 +23,10 @@
 			},
 			{
 				"command": "shaderinspector.repeatLastCompilation",
+				"title": "ShaderInspector: Repeat last compilation"
+			},
+			{
+				"command": "shaderinspector.addShaderDeclaration",
 				"title": "ShaderInspector: Repeat last compilation"
 			}
 		],
@@ -34,6 +39,11 @@
 			{
 				"command": "shaderinspector.repeatLastCompilation",
 				"key": "Alt+I"
+			},
+			{
+				"command": "shaderinspector.addShaderDeclaration",
+				"key": "Alt+U",
+				"when": "editorLangId == 'hlsl' && editorTextFocus"
 			}
 		]
 	},
