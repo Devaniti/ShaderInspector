@@ -1,7 +1,7 @@
 {
-  "name": "shaderinspector",
-	"displayName": "ShaderInspector",
-	"description": "",
+	"name": "shaderinspector",
+	"displayName": "Shader Inspector",
+	"description": "Extension to compile your shaders and view the assembly",
 	"version": "0.0.1",
 	"engines": {
 		"vscode": "^1.69.0"
@@ -9,11 +9,19 @@
 	"categories": [
 		"Other"
 	],
+	"author": {
+		"name": "Dmytro Bulatov"
+	},
+	"publisher": "DmytroBulatov",
 	"activationEvents": [
-        "onCommand:shaderinspector.compileWithDXC",
-        "onCommand:shaderinspector.repeatLastCompilation",
-        "onCommand:shaderinspector.addShaderDeclaration"
+		"onCommand:shaderinspector.compileWithDXC",
+		"onCommand:shaderinspector.repeatLastCompilation",
+		"onCommand:shaderinspector.addShaderDeclaration"
 	],
+	"repository": {
+		"url": "https://github.com/Devaniti/ShaderInspector",
+		"type": "git"
+	},
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
@@ -30,7 +38,7 @@
 				"title": "ShaderInspector: Repeat last compilation"
 			}
 		],
-		"keybindings" : [
+		"keybindings": [
 			{
 				"command": "shaderinspector.compileWithDXC",
 				"key": "Alt+O",
