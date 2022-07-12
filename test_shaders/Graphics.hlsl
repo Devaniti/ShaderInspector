@@ -5,33 +5,51 @@ BEGIN_SHADER_DECLARATIONS
   [
     {
       "ShaderName": "DebugVS",
+      "ShaderCompiler": "dxc",
       "ShaderType": "vs",
-      "ShaderModel": "6_5",
+      "ShaderModel": "6_6",
       "EntryPoint": "VSMain",
-      "Defines": [
-        "Define1",
-        "Define2"
-      ],
+      "Defines": [],
       "Optimization": "3",
       "AdditionalArgs": [
         "-HV 2018",
-        "-all-resources-bound"
+        "-all-resources-bound",
+        "-enable-16bit-types"
       ]
     },
     {
       "ShaderName": "DebugPS",
+      "ShaderCompiler": "dxc",
       "ShaderType": "ps",
-      "ShaderModel": "6_5",
+      "ShaderModel": "6_6",
       "EntryPoint": "PSMain",
-      "Defines": [
-        "Define1",
-        "Define2"
-      ],
+      "Defines": [],
       "Optimization": "3",
       "AdditionalArgs": [
         "-HV 2018",
-        "-all-resources-bound"
+        "-all-resources-bound",
+        "-enable-16bit-types"
       ]
+    },
+    {
+      "ShaderName": "DebugVS",
+      "ShaderCompiler": "fxc",
+      "ShaderType": "vs",
+      "ShaderModel": "5_0",
+      "EntryPoint": "VSMain",
+      "Defines": [],
+      "Optimization": "3",
+      "AdditionalArgs": []
+    },
+    {
+      "ShaderName": "DebugPS",
+      "ShaderCompiler": "fxc",
+      "ShaderType": "ps",
+      "ShaderModel": "5_0",
+      "EntryPoint": "PSMain",
+      "Defines": [],
+      "Optimization": "3",
+      "AdditionalArgs": []
     }
   ]
 }

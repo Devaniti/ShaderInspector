@@ -14,7 +14,7 @@
 	},
 	"publisher": "DmytroBulatov",
 	"activationEvents": [
-		"onCommand:shaderinspector.compileWithDXC",
+		"onCommand:shaderinspector.compileShader",
 		"onCommand:shaderinspector.repeatLastCompilation",
 		"onCommand:shaderinspector.addShaderDeclaration"
 	],
@@ -32,8 +32,8 @@
 	"contributes": {
 		"commands": [
 			{
-				"command": "shaderinspector.compileWithDXC",
-				"title": "Shader Inspector: Compile With DXC"
+				"command": "shaderinspector.compileShader",
+				"title": "Shader Inspector: Compile Shader"
 			},
 			{
 				"command": "shaderinspector.repeatLastCompilation",
@@ -46,7 +46,7 @@
 		],
 		"keybindings": [
 			{
-				"command": "shaderinspector.compileWithDXC",
+				"command": "shaderinspector.compileShader",
 				"key": "Alt+O",
 				"when": "editorLangId == 'hlsl' && editorTextFocus"
 			},
@@ -59,7 +59,61 @@
 				"key": "Alt+U",
 				"when": "editorLangId == 'hlsl' && editorTextFocus"
 			}
-		]
+		],
+		"configuration": {
+			"title": "Shader Inspector",
+			"properties": {
+				"DmytroBulatov.shaderinspector.customFXCPath": {
+					"type": "string",
+					"default": "",
+					"description": "Path to the FXC compiler. Leave empty for autodetection."
+				},
+				"DmytroBulatov.shaderinspector.customDXCPath": {
+					"type": "string",
+					"default": "",
+					"description": "Path to the DXC compiler. Leave empty for autodetection."
+				},
+				"DmytroBulatov.shaderinspector.shaderDefaults.shaderCompiler": {
+					"type": "string",
+					"default": "dxc",
+					"enum": [
+						"dxc",
+						"fxc"
+					],
+					"description": "Default shader compiler to use."
+				},
+				"DmytroBulatov.shaderinspector.shaderDefaults.shaderType": {
+					"type": "string",
+					"default": "ps",
+					"description": "Default shader type to use."
+				},
+				"DmytroBulatov.shaderinspector.shaderDefaults.shaderModel": {
+					"type": "string",
+					"default": "6_0",
+					"description": "Default shader model to use."
+				},
+				"DmytroBulatov.shaderinspector.shaderDefaults.entryPoint": {
+					"type": "string",
+					"default": "main",
+					"description": "Default entry point to use."
+				},
+				"DmytroBulatov.shaderinspector.shaderDefaults.defines": {
+					"type": "string",
+					"default": "",
+					"description": "Default defines to use. Always used even when Defines are set in the shader declaration. When using multiple, separate with \";\"."
+				},
+				"DmytroBulatov.shaderinspector.shaderDefaults.optimization": {
+					"type": "string",
+					"default": "3",
+					"description": "Default optimization level to use."
+				},
+				"DmytroBulatov.shaderinspector.shaderDefaults.additionalArgs": {
+					"type": "string",
+					"default": "",
+					"description": "Default additional args to use. Always used even when AdditionalArgs are set in the shader declaration."
+				}
+			}
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",

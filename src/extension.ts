@@ -6,12 +6,13 @@ import * as vscode from 'vscode'
 type ShaderDeclaration =
 	{
 		ShaderName: string
-		ShaderType: string
-		ShaderModel: string
+		ShaderCompiler: string | null
+		ShaderType: string | null
+		ShaderModel: string | null
 		EntryPoint: string | null
-		Defines: Array<string>
-		Optimization: string
-		AdditionalArgs: Array<string>
+		Defines: Array<string> | null
+		Optimization: string | null
+		AdditionalArgs: Array<string> | null
 	}
 
 type FileShaderDeclarations =
@@ -26,19 +27,67 @@ type ShaderCompilationData =
 	}
 
 interface ShaderQuickPick extends vscode.QuickPickItem {
-	Shader: ShaderDeclaration
+	index: number
 }
 
 const shaderDeclarationRegexp: RegExp = /BEGIN_SHADER_DECLARATIONS(?<ShaderJson>.*)END_SHADER_DECLARATIONS/s
+const winSDKSearchCommand = '((for /f "usebackq tokens=*" %i in (`"%ProgramFiles(x86)%/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products * -property installationPath`) do (set VSDetectedDir=%i) && (call "%VSDetectedDir%/Common7/Tools/VsDevCmd.bat" > nul)) > nul) && (cmd /c echo %WindowsSdkVerBinPath%)'
 
-function IsDXCAvailable(): boolean {
+let cachedWindowsSDKPath = ""
+
+function GetWindowsSDKPath(): string {
+	if (cachedWindowsSDKPath != "") return cachedWindowsSDKPath
+
+	let outputText: string = ""
 	try {
-		execFileSync("dxc", ["--help"])
+		let outputData: Buffer = execFileSync(winSDKSearchCommand, [], { shell: true })
+		outputText = outputData.toString()
 	}
 	catch (err) {
-		return false
+		if (err instanceof Error) {
+			outputText = err.message
+		}
 	}
-	return true
+
+	cachedWindowsSDKPath = outputText.trim()
+	return cachedWindowsSDKPath
+}
+
+function GetSetting(settingName: string): string {
+	return vscode.workspace.getConfiguration().get('DmytroBulatov.shaderinspector.' + settingName) ?? ""
+}
+
+function GetDXCPath(): string {
+	let configPath: string = GetSetting('customDXCPath')
+	if (configPath != null && configPath != "") return configPath
+	return GetWindowsSDKPath() + "x64\\dxc.exe"
+}
+
+function GetFXCPath(): string {
+	let configPath: string = GetSetting('customFXCPath')
+	if (configPath != null && configPath != "") return configPath
+	return GetWindowsSDKPath() + "x64\\fxc.exe"
+}
+
+function GetCompilerPath(shaderDeclaration: ShaderDeclaration): string {
+	switch (shaderDeclaration.ShaderCompiler) {
+		case "dxc": return GetDXCPath()
+		case "fxc": return GetFXCPath()
+		default: throw Error("Unknown shader compiler: " + shaderDeclaration.ShaderCompiler)
+	}
+}
+
+function FillDefaultParameters(shaderDeclaration: ShaderDeclaration): ShaderDeclaration {
+	if (shaderDeclaration.ShaderCompiler == null) shaderDeclaration.ShaderCompiler = GetSetting("shaderDefaults.shaderCompiler")
+	if (shaderDeclaration.ShaderType == null) shaderDeclaration.ShaderType = GetSetting("shaderDefaults.shaderType")
+	if (shaderDeclaration.ShaderModel == null) shaderDeclaration.ShaderModel = GetSetting("shaderDefaults.shaderModel")
+	if (shaderDeclaration.EntryPoint == null) shaderDeclaration.EntryPoint = GetSetting("shaderDefaults.entryPoint")
+	if (shaderDeclaration.Optimization == null) shaderDeclaration.Optimization = GetSetting("shaderDefaults.optimization")
+	if (shaderDeclaration.AdditionalArgs == null) shaderDeclaration.AdditionalArgs = Array<string>()
+	if (shaderDeclaration.Defines == null) shaderDeclaration.Defines = Array<string>()
+	shaderDeclaration.AdditionalArgs.push(GetSetting("shaderDefaults.additionalArgs"))
+	shaderDeclaration.Defines = shaderDeclaration.Defines.concat(GetSetting("shaderDefaults.defines").split(";").filter(e => e.length > 0))
+	return shaderDeclaration
 }
 
 function ReplaceAll(str: string, subStr: string, replacement: string): string {
@@ -64,37 +113,32 @@ body {
 var lastCompiled: ShaderCompilationData | null = null;
 
 function repeatLastCompilation(): void {
-	if (lastCompiled == null) {
-		vscode.window.showErrorMessage('Haven\'t compiled anything yet.')
-		return;
-	}
+	if (lastCompiled == null)
+		throw Error('Haven\'t compiled anything yet.')
+
 	compileFileFromDeclaration(lastCompiled)
 }
 
 function compileFileFromDeclaration(toCompile: ShaderCompilationData): void {
 	lastCompiled = toCompile
 
-	let tempDir: string | null = process.env["tmp"] ?? null
-
-	if (tempDir == null) {
-		vscode.window.showErrorMessage('Can\'t get temp directory.')
-		return
-	}
+	toCompile.shaderDeclaration = FillDefaultParameters(toCompile.shaderDeclaration)
 
 	let args: Array<string> =
 		[
 			"-nologo",
-			"-T " + toCompile.shaderDeclaration.ShaderType + "_" + toCompile.shaderDeclaration.ShaderModel,
+			"-T" + toCompile.shaderDeclaration.ShaderType + "_" + toCompile.shaderDeclaration.ShaderModel,
 			"-O" + toCompile.shaderDeclaration.Optimization,
 			toCompile.fileName
 		]
-	if (toCompile.shaderDeclaration.EntryPoint) args.push("-E " + toCompile.shaderDeclaration.EntryPoint)
-	args = args.concat(toCompile.shaderDeclaration.Defines.map(def => "-D" + def))
-	args = args.concat(toCompile.shaderDeclaration.AdditionalArgs)
+	if (toCompile.shaderDeclaration.EntryPoint) args.push("-E" + toCompile.shaderDeclaration.EntryPoint)
+	args = args.concat(toCompile.shaderDeclaration.Defines?.map(def => "-D" + def) ?? [])
+	args = args.concat(toCompile.shaderDeclaration.AdditionalArgs?.filter(e => e != '') ?? [])
 	let outputText: string = ""
+	let compilerPath: string = GetCompilerPath(toCompile.shaderDeclaration)
 
 	try {
-		let outputData: Buffer = execFileSync("dxc", args)
+		let outputData: Buffer = execFileSync(compilerPath, args)
 		outputText = outputData.toString()
 	}
 	catch (err) {
@@ -103,49 +147,55 @@ function compileFileFromDeclaration(toCompile: ShaderCompilationData): void {
 		}
 	}
 
+	outputText = compilerPath + " " + args.join(" ") + "\r\n\r\n" + outputText
+
 	let webview = vscode.window.createWebviewPanel(toCompile.shaderDeclaration.ShaderName, toCompile.shaderDeclaration.ShaderName, vscode.ViewColumn.One)
 	webview.webview.html = TextToHTML(outputText)
 }
 
 function compileFileFromText(fullPath: string, shaderText: string): void {
 	let shaderDeclarationMatch: RegExpMatchArray | null = shaderText.match(shaderDeclarationRegexp)
-	if (shaderDeclarationMatch == null) {
-		vscode.window.showErrorMessage('No shader declaration.')
-		return
-	}
+	if (shaderDeclarationMatch == null)
+		throw Error('No shader declaration.')
+
 	let shaderDeclarationJSONString: string | null = shaderDeclarationMatch.groups ? shaderDeclarationMatch.groups["ShaderJson"] : null
-	if (shaderDeclarationJSONString == null) {
-		vscode.window.showErrorMessage('Missing shader declaration regexp match group.')
-		return
-	}
+	if (shaderDeclarationJSONString == null)
+		throw Error('Missing shader declaration regexp match group.')
+
 	let shaderDeclaration: FileShaderDeclarations
 	try {
 		shaderDeclaration = JSON.parse(shaderDeclarationJSONString)
 	}
 	catch (err) {
-		vscode.window.showErrorMessage("Parsing shader declaration JSON failed: " + err)
-		return
+		throw Error("Parsing shader declaration JSON failed: " + err)
 	}
 
-	if (shaderDeclaration.Shaders.length == 0) {
-		vscode.window.showErrorMessage("Missing shader declarations.")
-	}
+	if (shaderDeclaration.Shaders.length == 0)
+		throw Error("Missing shader declarations.")
 
-	if (shaderDeclaration.Shaders.length == 1) {
+	if (shaderDeclaration.Shaders.length == 1)
 		compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: shaderDeclaration.Shaders[0] })
-	}
 
 	let shaderOptions: Array<ShaderQuickPick> = []
+	let i: number = 0
 	shaderDeclaration.Shaders.forEach((shader) => {
-		let description: string = shader.ShaderType + "_" + shader.ShaderModel
-		if (shader.EntryPoint != null) description += " | " + shader.EntryPoint
-		if (shader.Defines.length != 0) description += " | " + shader.Defines.join(" ")
-		if (shader.AdditionalArgs.length != 0) description += " | " + shader.AdditionalArgs.join(" ")
-		description += " | -O" + shader.Optimization
+		let description: string = ""
+		if (shader.ShaderCompiler) description += " | " + shader.ShaderCompiler
+		if (shader.ShaderType) description += " | " + shader.ShaderType
+		if (shader.ShaderModel) {
+			if (shader.ShaderType) description += "_" + shader.ShaderModel
+			else description += " | " + shader.ShaderModel
+		}
+		if (shader.EntryPoint) description += " | " + shader.EntryPoint
+		if (shader.Defines?.length) description += " | " + shader.Defines?.join(" ")
+		if (shader.AdditionalArgs?.length) description += " | " + shader.AdditionalArgs?.join(" ")
+		if (shader.Optimization) description += " | -O" + shader.Optimization
+		// Remove first separator from description beginning
+		description = description.replace(" | ", "")
 		shaderOptions.push({
 			label: shader.ShaderName,
 			description: description,
-			Shader: shader
+			index: i++
 		})
 	})
 
@@ -153,20 +203,16 @@ function compileFileFromText(fullPath: string, shaderText: string): void {
 		if (selection == null) {
 			return
 		}
-		compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: selection.Shader })
+		compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: shaderDeclaration.Shaders[selection.index] })
 	})
 }
 
-function compileCurrentFile() : void
-{
-	if (vscode.window.activeTextEditor == null) {
-		vscode.window.showErrorMessage('No active text editor to compile code in.')
-		return
-	}
-	if (vscode.window.activeTextEditor.document.languageId != 'hlsl') {
-		vscode.window.showErrorMessage('Wrond document language. HLSL expected.')
-		return;
-	}
+function compileCurrentFile(): void {
+	if (vscode.window.activeTextEditor == null)
+		throw Error('No active text editor to compile code in.')
+
+	if (vscode.window.activeTextEditor.document.languageId != 'hlsl')
+		throw Error('Wrond document language. HLSL expected.')
 
 	let shaderFileName: string = vscode.window.activeTextEditor.document.fileName
 	let shaderCode: string = vscode.window.activeTextEditor.document.getText()
@@ -174,7 +220,7 @@ function compileCurrentFile() : void
 	compileFileFromText(shaderFileName, shaderCode)
 }
 
-const defaultShaderDeclaration =
+const defaultDXCShaderDeclaration =
 	`/*
 BEGIN_SHADER_DECLARATIONS
 {
@@ -182,8 +228,9 @@ BEGIN_SHADER_DECLARATIONS
 	[
 		{
 			"ShaderName": "SampleShader",
+			"ShaderCompiler": "dxc",
 			"ShaderType": "ps",
-			"ShaderModel": "6_0",
+			"ShaderModel": "6_6",
 			"EntryPoint": "main",
 			"Defines": [
 				"SampleDefine"
@@ -200,45 +247,86 @@ BEGIN_SHADER_DECLARATIONS
 END_SHADER_DECLARATIONS
 */`
 
+const defaultFXCShaderDeclaration =
+	`/*
+BEGIN_SHADER_DECLARATIONS
+{
+	"Shaders": 
+	[
+		{
+			"ShaderName": "SampleShader",
+			"ShaderCompiler": "fxc",
+			"ShaderType": "ps",
+			"ShaderModel": "5_0",
+			"EntryPoint": "main",
+			"Defines": [
+				"SampleDefine"
+				],
+			"Optimization": "3",
+			"AdditionalArgs": []
+		}
+	]
+}
+END_SHADER_DECLARATIONS
+*/`
+
 function addShaderDeclaration(): void {
-	if (vscode.window.activeTextEditor == null) {
-		vscode.window.showErrorMessage('No active text editor to add shader declaration to.')
-		return;
-	}
-	if (vscode.window.activeTextEditor.document.languageId != 'hlsl') {
-		vscode.window.showErrorMessage('Wrond document language. HLSL expected.')
-		return;
-	}
+	if (vscode.window.activeTextEditor == null)
+		throw Error('No active text editor to add shader declaration to.')
+
+	if (vscode.window.activeTextEditor.document.languageId != 'hlsl')
+		throw Error('Wrond document language. HLSL expected.')
+
 	let shaderDeclarationMatch = vscode.window.activeTextEditor.document.getText().match(shaderDeclarationRegexp)
-	if (shaderDeclarationMatch != null) {
-		vscode.window.showErrorMessage('File already has shader declaration.')
-		return;
+	if (shaderDeclarationMatch != null)
+		throw Error('File already has shader declaration.')
+
+	let editor = vscode.window.activeTextEditor
+
+	vscode.window.showQuickPick(["fxc", "dxc"]).then((selection) => {
+		if (selection == null)
+			return
+
+		let declarationToPut: string = ""
+
+		switch (selection) {
+			case "dxc": declarationToPut = defaultDXCShaderDeclaration
+				break;
+			case "fxc": declarationToPut = defaultFXCShaderDeclaration
+				break;
+			default: throw Error("Unexpected selection in addShaderDeclaration: " + selection)
+		}
+
+		editor.edit(editBuilder => {
+			editBuilder.insert(new vscode.Position(0, 0), declarationToPut);
+		});
+	})
+}
+
+function wrapErrorHandler(func: () => void): void {
+	try {
+		func()
 	}
-	vscode.window.activeTextEditor.edit(editBuilder => {
-		editBuilder.insert(new vscode.Position(0, 0), defaultShaderDeclaration);
-	});
+	catch (err) {
+		if (err instanceof Error) {
+			vscode.window.showErrorMessage(err.message)
+		}
+	}
 }
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	if (!IsDXCAvailable()) {
-		vscode.window.showInformationMessage('DXC is not in PATH. ShaderInspector won\'t work.')
-	}
-
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	context.subscriptions.push(vscode.commands.registerTextEditorCommand('shaderinspector.compileWithDXC', () => {
-		compileCurrentFile()
+	context.subscriptions.push(vscode.commands.registerTextEditorCommand('shaderinspector.compileShader', () => {
+		wrapErrorHandler(compileCurrentFile)
 	}))
 
 	context.subscriptions.push(vscode.commands.registerCommand('shaderinspector.repeatLastCompilation', () => {
-		repeatLastCompilation()
+		wrapErrorHandler(repeatLastCompilation)
 	}))
 
 	context.subscriptions.push(vscode.commands.registerCommand('shaderinspector.addShaderDeclaration', () => {
-		addShaderDeclaration()
+		wrapErrorHandler(addShaderDeclaration)
 	}))
 }
 
