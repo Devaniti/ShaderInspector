@@ -15,8 +15,8 @@
 	"publisher": "DmytroBulatov",
 	"activationEvents": [
 		"onCommand:shaderinspector.compileShader",
-		"onCommand:shaderinspector.repeatLastCompilation",
-		"onCommand:shaderinspector.addShaderDeclaration"
+		"onCommand:shaderinspector.compileShaderInteractive",
+		"onCommand:shaderinspector.repeatLastCompilation"
 	],
 	"repository": {
 		"url": "https://github.com/Devaniti/ShaderInspector",
@@ -36,12 +36,12 @@
 				"title": "Shader Inspector: Compile Shader"
 			},
 			{
-				"command": "shaderinspector.repeatLastCompilation",
-				"title": "Shader Inspector: Repeat last compilation"
+				"command": "shaderinspector.compileShaderInteractive",
+				"title": "Shader Inspector: Compile Shader Interactively"
 			},
 			{
-				"command": "shaderinspector.addShaderDeclaration",
-				"title": "Shader Inspector: Add shader declaration"
+				"command": "shaderinspector.repeatLastCompilation",
+				"title": "Shader Inspector: Repeat last compilation"
 			}
 		],
 		"keybindings": [
@@ -51,13 +51,13 @@
 				"when": "editorLangId == 'hlsl' && editorTextFocus"
 			},
 			{
-				"command": "shaderinspector.repeatLastCompilation",
-				"key": "Alt+I"
+				"command": "shaderinspector.compileShaderInteractive",
+				"key": "Alt+I",
+				"when": "editorLangId == 'hlsl' && editorTextFocus"
 			},
 			{
-				"command": "shaderinspector.addShaderDeclaration",
-				"key": "Alt+U",
-				"when": "editorLangId == 'hlsl' && editorTextFocus"
+				"command": "shaderinspector.repeatLastCompilation",
+				"key": "Shift+Alt+O"
 			}
 		],
 		"configuration": {
@@ -72,6 +72,11 @@
 					"type": "string",
 					"default": "",
 					"description": "Path to the DXC compiler. Leave empty for autodetection."
+				},
+				"DmytroBulatov.shaderinspector.addShaderDeclarationsOnInteractiveCompile": {
+					"type": "boolean",
+					"default": "true",
+					"description": "Whether to add shader declarations on interactive compile by default. You'll still be asked each time, this only changes default selection."
 				},
 				"DmytroBulatov.shaderinspector.shaderDefaults.shaderCompiler": {
 					"type": "string",

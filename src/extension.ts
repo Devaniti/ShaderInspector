@@ -77,6 +77,54 @@ function GetCompilerPath(shaderDeclaration: ShaderDeclaration): string {
 	}
 }
 
+function addShaderDeclaration(textEditor: vscode.TextEditor, shaderDeclaration: ShaderDeclaration): void {
+	let fileDeclaration: FileShaderDeclarations =
+	{
+		Shaders: [shaderDeclaration]
+	}
+
+	let declarationPosition: vscode.Position | vscode.Range = new vscode.Position(0, 0)
+	let declarationExists: boolean = false
+
+	let shaderDeclarationMatch: RegExpMatchArray | null = textEditor.document.getText().match(shaderDeclarationRegexp)
+	if (shaderDeclarationMatch != null) {
+		if (shaderDeclarationMatch.index == null)
+			throw Error("Missing index property on RegExpMatch")
+		let shaderDeclarationJSONString: string | null = shaderDeclarationMatch.groups ? shaderDeclarationMatch.groups["ShaderJson"] : null
+		if (shaderDeclarationJSONString == null)
+			throw Error('Missing shader declaration regexp match group.')
+		try {
+			fileDeclaration = JSON.parse(shaderDeclarationJSONString)
+		}
+		catch (err) {
+			throw Error("Parsing shader declaration JSON failed: " + err)
+		}
+
+		declarationPosition = new vscode.Range(textEditor.document.positionAt(shaderDeclarationMatch.index), textEditor.document.positionAt(shaderDeclarationMatch.index + shaderDeclarationMatch[0].length))
+		fileDeclaration.Shaders.push(shaderDeclaration)
+		declarationExists = true
+	}
+
+	let tabSize: string = vscode.workspace.getConfiguration().get("editor.tabSize") ?? "4"
+
+	let declarationToPut =
+		`BEGIN_SHADER_DECLARATIONS
+${JSON.stringify(fileDeclaration, null, tabSize)}
+END_SHADER_DECLARATIONS`
+
+	if (!declarationExists)
+		declarationToPut =
+			`/*
+${declarationToPut}
+*/
+
+`
+
+	textEditor.edit(editBuilder => {
+		editBuilder.replace(declarationPosition, declarationToPut)
+	});
+}
+
 function FillDefaultParameters(shaderDeclaration: ShaderDeclaration): ShaderDeclaration {
 	if (shaderDeclaration.ShaderCompiler == null) shaderDeclaration.ShaderCompiler = GetSetting("shaderDefaults.shaderCompiler")
 	if (shaderDeclaration.ShaderType == null) shaderDeclaration.ShaderType = GetSetting("shaderDefaults.shaderType")
@@ -153,10 +201,70 @@ function compileFileFromDeclaration(toCompile: ShaderCompilationData): void {
 	webview.webview.html = TextToHTML(outputText)
 }
 
+function compileFileInteractive(): void {
+
+	if (vscode.window.activeTextEditor == undefined)
+		throw Error("No active text editor found")
+
+	let textEditor = vscode.window.activeTextEditor
+
+	let shaderDeclaration: ShaderDeclaration =
+	{
+		ShaderName: "Shader",
+		ShaderCompiler: null,
+		ShaderType: null,
+		ShaderModel: null,
+		EntryPoint: null,
+		Defines: null,
+		Optimization: null,
+		AdditionalArgs: null
+	}
+
+	let defaultCompiler = GetSetting('shaderDefaults.shaderCompiler')
+	let compilerOptions = defaultCompiler == 'dxc' ? ['dxc', 'fxc'] : ['fxc', 'dxc']
+
+	vscode.window.showQuickPick(compilerOptions, { title: 'Shader Compiler' }).then(shaderCompiler => {
+		if (shaderCompiler == undefined) return
+		shaderDeclaration.ShaderCompiler = shaderCompiler
+		vscode.window.showInputBox({ title: 'Shader Type', value: GetSetting('shaderDefaults.shaderType') }).then(shaderType => {
+			if (shaderType == undefined) return
+			shaderDeclaration.ShaderType = shaderType
+			vscode.window.showInputBox({ title: 'Shader Model', value: GetSetting('shaderDefaults.shaderModel') }).then(shaderModel => {
+				if (shaderModel == undefined) return
+				shaderDeclaration.ShaderModel = shaderModel
+				vscode.window.showInputBox({ title: 'EntryPoint', value: GetSetting('shaderDefaults.entryPoint') }).then(entryPoint => {
+					if (entryPoint == undefined) return
+					shaderDeclaration.EntryPoint = shaderDeclaration.ShaderName = entryPoint
+					vscode.window.showInputBox({ title: 'Defines (separated by ";")' }).then(defines => {
+						if (defines == undefined) return
+						shaderDeclaration.Defines = defines.split(';').filter(e => e.length > 0)
+						vscode.window.showInputBox({ title: 'Optimization level (0-3)', value: GetSetting('shaderDefaults.optimization') }).then(optimization => {
+							if (optimization == undefined) return
+							shaderDeclaration.Optimization = optimization
+							vscode.window.showInputBox({ title: 'Additional Args (separated by " ")', placeHolder: '-HV 2018 -all-resources-bound -enable-16bit-types' }).then(additionalArgs => {
+								if (additionalArgs == undefined) return
+								shaderDeclaration.AdditionalArgs = [additionalArgs].filter(e => e.length > 0)
+								let defaultBehaviour = GetSetting('addShaderDeclarationsOnInteractiveCompile')
+								let addDeclarationOptions = defaultBehaviour == 'true' ? ['yes', 'no'] : ['no', 'yes']
+								vscode.window.showQuickPick(addDeclarationOptions, { title: 'Add shader declaration to shader file' }).then(needAdd => {
+									if (needAdd == 'yes') {
+										addShaderDeclaration(textEditor, shaderDeclaration)
+									}
+									compileFileFromDeclaration({ fileName: textEditor.document.fileName, shaderDeclaration: shaderDeclaration })
+								})
+							})
+						})
+					})
+				})
+			})
+		})
+	})
+}
+
 function compileFileFromText(fullPath: string, shaderText: string): void {
 	let shaderDeclarationMatch: RegExpMatchArray | null = shaderText.match(shaderDeclarationRegexp)
 	if (shaderDeclarationMatch == null)
-		throw Error('No shader declaration.')
+		return compileFileInteractive()
 
 	let shaderDeclarationJSONString: string | null = shaderDeclarationMatch.groups ? shaderDeclarationMatch.groups["ShaderJson"] : null
 	if (shaderDeclarationJSONString == null)
@@ -220,89 +328,6 @@ function compileCurrentFile(): void {
 	compileFileFromText(shaderFileName, shaderCode)
 }
 
-const defaultDXCShaderDeclaration =
-	`/*
-BEGIN_SHADER_DECLARATIONS
-{
-	"Shaders": 
-	[
-		{
-			"ShaderName": "SampleShader",
-			"ShaderCompiler": "dxc",
-			"ShaderType": "ps",
-			"ShaderModel": "6_6",
-			"EntryPoint": "main",
-			"Defines": [
-				"SampleDefine"
-				],
-			"Optimization": "3",
-			"AdditionalArgs": [
-				"-HV 2018",
-				"-all-resources-bound",
-				"-enable-16bit-types"
-				]
-		}
-	]
-}
-END_SHADER_DECLARATIONS
-*/`
-
-const defaultFXCShaderDeclaration =
-	`/*
-BEGIN_SHADER_DECLARATIONS
-{
-	"Shaders": 
-	[
-		{
-			"ShaderName": "SampleShader",
-			"ShaderCompiler": "fxc",
-			"ShaderType": "ps",
-			"ShaderModel": "5_0",
-			"EntryPoint": "main",
-			"Defines": [
-				"SampleDefine"
-				],
-			"Optimization": "3",
-			"AdditionalArgs": []
-		}
-	]
-}
-END_SHADER_DECLARATIONS
-*/`
-
-function addShaderDeclaration(): void {
-	if (vscode.window.activeTextEditor == null)
-		throw Error('No active text editor to add shader declaration to.')
-
-	if (vscode.window.activeTextEditor.document.languageId != 'hlsl')
-		throw Error('Wrond document language. HLSL expected.')
-
-	let shaderDeclarationMatch = vscode.window.activeTextEditor.document.getText().match(shaderDeclarationRegexp)
-	if (shaderDeclarationMatch != null)
-		throw Error('File already has shader declaration.')
-
-	let editor = vscode.window.activeTextEditor
-
-	vscode.window.showQuickPick(["fxc", "dxc"]).then((selection) => {
-		if (selection == null)
-			return
-
-		let declarationToPut: string = ""
-
-		switch (selection) {
-			case "dxc": declarationToPut = defaultDXCShaderDeclaration
-				break;
-			case "fxc": declarationToPut = defaultFXCShaderDeclaration
-				break;
-			default: throw Error("Unexpected selection in addShaderDeclaration: " + selection)
-		}
-
-		editor.edit(editBuilder => {
-			editBuilder.insert(new vscode.Position(0, 0), declarationToPut);
-		});
-	})
-}
-
 function wrapErrorHandler(func: () => void): void {
 	try {
 		func()
@@ -321,12 +346,12 @@ export function activate(context: vscode.ExtensionContext) {
 		wrapErrorHandler(compileCurrentFile)
 	}))
 
-	context.subscriptions.push(vscode.commands.registerCommand('shaderinspector.repeatLastCompilation', () => {
-		wrapErrorHandler(repeatLastCompilation)
+	context.subscriptions.push(vscode.commands.registerTextEditorCommand('shaderinspector.compileShaderInteractive', () => {
+		wrapErrorHandler(compileFileInteractive)
 	}))
 
-	context.subscriptions.push(vscode.commands.registerCommand('shaderinspector.addShaderDeclaration', () => {
-		wrapErrorHandler(addShaderDeclaration)
+	context.subscriptions.push(vscode.commands.registerCommand('shaderinspector.repeatLastCompilation', () => {
+		wrapErrorHandler(repeatLastCompilation)
 	}))
 }
 
