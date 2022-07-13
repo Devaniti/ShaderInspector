@@ -241,9 +241,9 @@ function compileFileInteractive(): void {
 						vscode.window.showInputBox({ title: 'Optimization level (0-3)', value: GetSetting('shaderDefaults.optimization') }).then(optimization => {
 							if (optimization == undefined) return
 							shaderDeclaration.Optimization = optimization
-							vscode.window.showInputBox({ title: 'Additional Args (separated by " ")', placeHolder: '-HV 2018 -all-resources-bound -enable-16bit-types' }).then(additionalArgs => {
+							vscode.window.showInputBox({ title: 'Additional Args (separated by " ")'}).then(additionalArgs => {
 								if (additionalArgs == undefined) return
-								shaderDeclaration.AdditionalArgs = [additionalArgs].filter(e => e.length > 0)
+								shaderDeclaration.AdditionalArgs = additionalArgs.split(" ").filter(e => e.length > 0)
 								let defaultBehaviour = GetSetting('addShaderDeclarationsOnInteractiveCompile')
 								let addDeclarationOptions = defaultBehaviour == 'true' ? ['yes', 'no'] : ['no', 'yes']
 								vscode.window.showQuickPick(addDeclarationOptions, { title: 'Add shader declaration to shader file' }).then(needAdd => {

@@ -41,7 +41,7 @@
 			},
 			{
 				"command": "shaderinspector.repeatLastCompilation",
-				"title": "Shader Inspector: Repeat last compilation"
+				"title": "Shader Inspector: Repeat Last Compilation"
 			}
 		],
 		"keybindings": [
