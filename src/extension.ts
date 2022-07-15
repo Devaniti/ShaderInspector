@@ -1,6 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import { execFileSync, ExecFileSyncOptions } from 'child_process'
+import { platform } from 'os'
 import * as vscode from 'vscode'
 
 type ShaderDeclaration =
@@ -30,6 +31,16 @@ interface ShaderQuickPick extends vscode.QuickPickItem {
 	index: number
 }
 
+function IsWindows(): boolean {
+	return platform() === 'win32'
+}
+
+function IsMacOS(): boolean {
+	return platform() === 'darwin'
+}
+
+const executableExtension = IsWindows() ? ".exe" : ""
+
 const shaderDeclarationRegexp: RegExp = /BEGIN_SHADER_DECLARATIONS(?<ShaderJson>.*)END_SHADER_DECLARATIONS/s
 const winSDKSearchCommand = '((for /f "usebackq tokens=*" %i in (`"%ProgramFiles(x86)%/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products * -property installationPath`) do (set VSDetectedDir=%i) && (call "%VSDetectedDir%/Common7/Tools/VsDevCmd.bat" > nul)) > nul) && (cmd /c echo %WindowsSdkVerBinPath%)'
 
@@ -42,6 +53,8 @@ async function WrapExec(title: string, command: string, args: Array<string>, opt
 }
 
 async function GetWindowsSDKPath(): Promise<string> {
+	if (!IsWindows()) return ""
+
 	if (cachedWindowsSDKPath != "") return cachedWindowsSDKPath
 
 	let outputText: string = ""
@@ -58,6 +71,12 @@ async function GetWindowsSDKPath(): Promise<string> {
 	return cachedWindowsSDKPath
 }
 
+function GetVulkanSDK(): string {
+	if (IsMacOS())
+		return process.env.VULKAN_SDK ? process.env.VULKAN_SDK + "/macOS/bin" : ""
+	return process.env.VULKAN_SDK ? process.env.VULKAN_SDK + "/bin" : ""
+}
+
 function GetSetting(settingName: string): string {
 	return vscode.workspace.getConfiguration().get('DmytroBulatov.shaderinspector.' + settingName) ?? ""
 }
@@ -65,13 +84,19 @@ function GetSetting(settingName: string): string {
 async function GetDXCPath(): Promise<string> {
 	let configPath: string = GetSetting('customDXCPath')
 	if (configPath != null && configPath != "") return configPath
-	return await GetWindowsSDKPath() + "x64\\dxc.exe"
+	let winSDKPath = await GetWindowsSDKPath()
+	if (winSDKPath != "") return winSDKPath + "x64/dxc" + executableExtension
+	let vulkanSDKPath = GetVulkanSDK()
+	if (vulkanSDKPath != "") return vulkanSDKPath + "/dxc" + executableExtension
+	throw Error("Cannot automatically find DXC. Please specify DXC path in settings.")
 }
 
 async function GetFXCPath(): Promise<string> {
 	let configPath: string = GetSetting('customFXCPath')
 	if (configPath != null && configPath != "") return configPath
-	return await GetWindowsSDKPath() + "x64\\fxc.exe"
+	let winSDKPath = await GetWindowsSDKPath()
+	if (winSDKPath != "") return winSDKPath + "x64/dxc" + executableExtension
+	throw Error("Cannot automatically find FXC. Please specify FXC path in settings.")
 }
 
 async function GetCompilerPath(shaderDeclaration: ShaderDeclaration): Promise<string> {
@@ -158,7 +183,7 @@ body {
 	font-size: ${fontSize}px;
 }
 </style></head>`
-	let htmlBody: string = "<body>" + ReplaceAll(text, "\r\n", "<br>") + "</body>"
+	let htmlBody: string = "<body>" + ReplaceAll(ReplaceAll(text, "\r\n", "<br>"), "\n", "<br>") + "</body>"
 	let html: string = "<html>" + htmlHead + htmlBody + "</html>"
 	return html
 }
