@@ -1,6 +1,6 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import { execFileSync } from 'child_process'
+import { execFileSync, ExecFileSyncOptions } from 'child_process'
 import * as vscode from 'vscode'
 
 type ShaderDeclaration =
@@ -35,13 +35,18 @@ const winSDKSearchCommand = '((for /f "usebackq tokens=*" %i in (`"%ProgramFiles
 
 let cachedWindowsSDKPath = ""
 
-function GetWindowsSDKPath(): string {
+async function WrapExec(title: string, command: string, args: Array<string>, options?: ExecFileSyncOptions): Promise<string> {
+	return await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: title }, async () => {
+		return execFileSync(command, args, options).toString()
+	})
+}
+
+async function GetWindowsSDKPath(): Promise<string> {
 	if (cachedWindowsSDKPath != "") return cachedWindowsSDKPath
 
 	let outputText: string = ""
 	try {
-		let outputData: Buffer = execFileSync(winSDKSearchCommand, [], { shell: true })
-		outputText = outputData.toString()
+		outputText = await WrapExec("Searching for windows SDK.", winSDKSearchCommand, [], { shell: true })
 	}
 	catch (err) {
 		if (err instanceof Error) {
@@ -57,19 +62,19 @@ function GetSetting(settingName: string): string {
 	return vscode.workspace.getConfiguration().get('DmytroBulatov.shaderinspector.' + settingName) ?? ""
 }
 
-function GetDXCPath(): string {
+async function GetDXCPath(): Promise<string> {
 	let configPath: string = GetSetting('customDXCPath')
 	if (configPath != null && configPath != "") return configPath
-	return GetWindowsSDKPath() + "x64\\dxc.exe"
+	return await GetWindowsSDKPath() + "x64\\dxc.exe"
 }
 
-function GetFXCPath(): string {
+async function GetFXCPath(): Promise<string> {
 	let configPath: string = GetSetting('customFXCPath')
 	if (configPath != null && configPath != "") return configPath
-	return GetWindowsSDKPath() + "x64\\fxc.exe"
+	return await GetWindowsSDKPath() + "x64\\fxc.exe"
 }
 
-function GetCompilerPath(shaderDeclaration: ShaderDeclaration): string {
+async function GetCompilerPath(shaderDeclaration: ShaderDeclaration): Promise<string> {
 	switch (shaderDeclaration.ShaderCompiler) {
 		case "dxc": return GetDXCPath()
 		case "fxc": return GetFXCPath()
@@ -160,14 +165,14 @@ body {
 
 var lastCompiled: ShaderCompilationData | null = null;
 
-function repeatLastCompilation(): void {
+async function repeatLastCompilation(): Promise<void> {
 	if (lastCompiled == null)
 		throw Error('Haven\'t compiled anything yet.')
 
-	compileFileFromDeclaration(lastCompiled)
+	return compileFileFromDeclaration(lastCompiled)
 }
 
-function compileFileFromDeclaration(toCompile: ShaderCompilationData): void {
+async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Promise<void> {
 	lastCompiled = toCompile
 
 	toCompile.shaderDeclaration = FillDefaultParameters(toCompile.shaderDeclaration)
@@ -183,11 +188,10 @@ function compileFileFromDeclaration(toCompile: ShaderCompilationData): void {
 	args = args.concat(toCompile.shaderDeclaration.Defines?.map(def => "-D" + def) ?? [])
 	args = args.concat(toCompile.shaderDeclaration.AdditionalArgs?.filter(e => e != '') ?? [])
 	let outputText: string = ""
-	let compilerPath: string = GetCompilerPath(toCompile.shaderDeclaration)
+	let compilerPath: string = await GetCompilerPath(toCompile.shaderDeclaration)
 
 	try {
-		let outputData: Buffer = execFileSync(compilerPath, args)
-		outputText = outputData.toString()
+		outputText = await WrapExec("Compiling shader.", compilerPath, args)
 	}
 	catch (err) {
 		if (err instanceof Error) {
@@ -201,8 +205,7 @@ function compileFileFromDeclaration(toCompile: ShaderCompilationData): void {
 	webview.webview.html = TextToHTML(outputText)
 }
 
-function compileFileInteractive(): void {
-
+async function compileFileInteractive(): Promise<void> {
 	if (vscode.window.activeTextEditor == undefined)
 		throw Error("No active text editor found")
 
@@ -223,45 +226,45 @@ function compileFileInteractive(): void {
 	let defaultCompiler = GetSetting('shaderDefaults.shaderCompiler')
 	let compilerOptions = defaultCompiler == 'dxc' ? ['dxc', 'fxc'] : ['fxc', 'dxc']
 
-	vscode.window.showQuickPick(compilerOptions, { title: 'Shader Compiler' }).then(shaderCompiler => {
-		if (shaderCompiler == undefined) return
-		shaderDeclaration.ShaderCompiler = shaderCompiler
-		vscode.window.showInputBox({ title: 'Shader Type', value: GetSetting('shaderDefaults.shaderType') }).then(shaderType => {
-			if (shaderType == undefined) return
-			shaderDeclaration.ShaderType = shaderType
-			vscode.window.showInputBox({ title: 'Shader Model', value: GetSetting('shaderDefaults.shaderModel') }).then(shaderModel => {
-				if (shaderModel == undefined) return
-				shaderDeclaration.ShaderModel = shaderModel
-				vscode.window.showInputBox({ title: 'EntryPoint', value: GetSetting('shaderDefaults.entryPoint') }).then(entryPoint => {
-					if (entryPoint == undefined) return
-					shaderDeclaration.EntryPoint = shaderDeclaration.ShaderName = entryPoint
-					vscode.window.showInputBox({ title: 'Defines (separated by ";")' }).then(defines => {
-						if (defines == undefined) return
-						shaderDeclaration.Defines = defines.split(';').filter(e => e.length > 0)
-						vscode.window.showInputBox({ title: 'Optimization level (0-3)', value: GetSetting('shaderDefaults.optimization') }).then(optimization => {
-							if (optimization == undefined) return
-							shaderDeclaration.Optimization = optimization
-							vscode.window.showInputBox({ title: 'Additional Args (separated by " ")'}).then(additionalArgs => {
-								if (additionalArgs == undefined) return
-								shaderDeclaration.AdditionalArgs = additionalArgs.split(" ").filter(e => e.length > 0)
-								let defaultBehaviour = GetSetting('addShaderDeclarationsOnInteractiveCompile')
-								let addDeclarationOptions = defaultBehaviour == 'true' ? ['yes', 'no'] : ['no', 'yes']
-								vscode.window.showQuickPick(addDeclarationOptions, { title: 'Add shader declaration to shader file' }).then(needAdd => {
-									if (needAdd == 'yes') {
-										addShaderDeclaration(textEditor, shaderDeclaration)
-									}
-									compileFileFromDeclaration({ fileName: textEditor.document.fileName, shaderDeclaration: shaderDeclaration })
-								})
-							})
-						})
-					})
-				})
-			})
-		})
-	})
+	let shaderCompiler = await vscode.window.showQuickPick(compilerOptions, { title: 'Shader Compiler' })
+	if (shaderCompiler == undefined) return
+	shaderDeclaration.ShaderCompiler = shaderCompiler
+
+	let shaderType = await vscode.window.showInputBox({ title: 'Shader Type', value: GetSetting('shaderDefaults.shaderType') })
+	if (shaderType == undefined) return
+	shaderDeclaration.ShaderType = shaderType
+
+	let shaderModel = await vscode.window.showInputBox({ title: 'Shader Model', value: GetSetting('shaderDefaults.shaderModel') })
+	if (shaderModel == undefined) return
+	shaderDeclaration.ShaderModel = shaderModel
+
+	let entryPoint = await vscode.window.showInputBox({ title: 'EntryPoint', value: GetSetting('shaderDefaults.entryPoint') })
+	if (entryPoint == undefined) return
+	shaderDeclaration.EntryPoint = shaderDeclaration.ShaderName = entryPoint
+
+	let defines = await vscode.window.showInputBox({ title: 'Defines (separated by ";")' })
+	if (defines == undefined) return
+	shaderDeclaration.Defines = defines.split(';').filter(e => e.length > 0)
+
+	let optimization = await vscode.window.showInputBox({ title: 'Optimization level (0-3)', value: GetSetting('shaderDefaults.optimization') })
+	if (optimization == undefined) return
+	shaderDeclaration.Optimization = optimization
+
+	let additionalArgs = await vscode.window.showInputBox({ title: 'Additional Args (separated by " ")' })
+	if (additionalArgs == undefined) return
+	shaderDeclaration.AdditionalArgs = additionalArgs.split(" ").filter(e => e.length > 0)
+	let defaultBehaviour = GetSetting('addShaderDeclarationsOnInteractiveCompile')
+	let addDeclarationOptions = defaultBehaviour == 'true' ? ['yes', 'no'] : ['no', 'yes']
+
+	let needAdd = await vscode.window.showQuickPick(addDeclarationOptions, { title: 'Add shader declaration to shader file' })
+	if (needAdd == 'yes') {
+		addShaderDeclaration(textEditor, shaderDeclaration)
+	}
+
+	return compileFileFromDeclaration({ fileName: textEditor.document.fileName, shaderDeclaration: shaderDeclaration })
 }
 
-function compileFileFromText(fullPath: string, shaderText: string): void {
+async function compileFileFromText(fullPath: string, shaderText: string): Promise<void> {
 	let shaderDeclarationMatch: RegExpMatchArray | null = shaderText.match(shaderDeclarationRegexp)
 	if (shaderDeclarationMatch == null)
 		return compileFileInteractive()
@@ -282,7 +285,7 @@ function compileFileFromText(fullPath: string, shaderText: string): void {
 		throw Error("Missing shader declarations.")
 
 	if (shaderDeclaration.Shaders.length == 1)
-		compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: shaderDeclaration.Shaders[0] })
+		return compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: shaderDeclaration.Shaders[0] })
 
 	let shaderOptions: Array<ShaderQuickPick> = []
 	let i: number = 0
@@ -307,15 +310,15 @@ function compileFileFromText(fullPath: string, shaderText: string): void {
 		})
 	})
 
-	vscode.window.showQuickPick(shaderOptions).then((selection) => {
+	return vscode.window.showQuickPick(shaderOptions).then((selection) => {
 		if (selection == null) {
 			return
 		}
-		compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: shaderDeclaration.Shaders[selection.index] })
+		return compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: shaderDeclaration.Shaders[selection.index] })
 	})
 }
 
-function compileCurrentFile(): void {
+async function compileCurrentFile(): Promise<void> {
 	if (vscode.window.activeTextEditor == null)
 		throw Error('No active text editor to compile code in.')
 
@@ -325,33 +328,30 @@ function compileCurrentFile(): void {
 	let shaderFileName: string = vscode.window.activeTextEditor.document.fileName
 	let shaderCode: string = vscode.window.activeTextEditor.document.getText()
 
-	compileFileFromText(shaderFileName, shaderCode)
+	return compileFileFromText(shaderFileName, shaderCode)
 }
 
-function wrapErrorHandler(func: () => void): void {
-	try {
-		func()
-	}
-	catch (err) {
+async function wrapErrorHandler(func: () => Promise<void>): Promise<void> {
+	return func().catch(err => {
 		if (err instanceof Error) {
 			vscode.window.showErrorMessage(err.message)
 		}
-	}
+	})
 }
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerTextEditorCommand('shaderinspector.compileShader', () => {
-		wrapErrorHandler(compileCurrentFile)
+		return wrapErrorHandler(compileCurrentFile)
 	}))
 
 	context.subscriptions.push(vscode.commands.registerTextEditorCommand('shaderinspector.compileShaderInteractive', () => {
-		wrapErrorHandler(compileFileInteractive)
+		return wrapErrorHandler(compileFileInteractive)
 	}))
 
 	context.subscriptions.push(vscode.commands.registerCommand('shaderinspector.repeatLastCompilation', () => {
-		wrapErrorHandler(repeatLastCompilation)
+		return wrapErrorHandler(repeatLastCompilation)
 	}))
 }
 
