@@ -45,6 +45,7 @@ const shaderDeclarationRegexp: RegExp = /BEGIN_SHADER_DECLARATIONS(?<ShaderJson>
 const winSDKSearchCommand = '((for /f "usebackq tokens=*" %i in (`"%ProgramFiles(x86)%/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products * -property installationPath`) do (set VSDetectedDir=%i) && (call "%VSDetectedDir%/Common7/Tools/VsDevCmd.bat" > nul)) > nul) && (cmd /c echo %WindowsSdkVerBinPath%)'
 
 let cachedWindowsSDKPath = ""
+let outputWindow: vscode.WebviewPanel | null = null
 
 async function WrapExec(title: string, command: string, args: Array<string>, options?: ExecFileSyncOptions): Promise<string> {
 	return await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: title }, async () => {
@@ -226,8 +227,14 @@ async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Pro
 
 	outputText = compilerPath + " " + args.join(" ") + "\r\n\r\n" + outputText
 
-	let webview = vscode.window.createWebviewPanel(toCompile.shaderDeclaration.ShaderName, toCompile.shaderDeclaration.ShaderName, vscode.ViewColumn.One)
-	webview.webview.html = TextToHTML(outputText)
+	if (outputWindow == null) {
+		outputWindow = vscode.window.createWebviewPanel(toCompile.shaderDeclaration.ShaderName, toCompile.shaderDeclaration.ShaderName, vscode.ViewColumn.One)
+		outputWindow.onDidDispose(() => {
+			outputWindow = null
+		})
+	}
+
+	outputWindow.webview.html = TextToHTML(outputText)
 }
 
 async function compileFileInteractive(): Promise<void> {
