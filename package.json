@@ -75,7 +75,7 @@
 				},
 				"DmytroBulatov.shaderinspector.addShaderDeclarationsOnInteractiveCompile": {
 					"type": "boolean",
-					"default": "true",
+					"default": "false",
 					"description": "Whether to add shader declarations on interactive compile by default. You'll still be asked each time, this only changes default selection."
 				},
 				"DmytroBulatov.shaderinspector.shaderDefaults.shaderCompiler": {
