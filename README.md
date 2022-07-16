@@ -16,7 +16,7 @@ When you'll have shader declarations saved, just run "Shader Inspector: Compile 
 
 ## Requirements
 
-You must have Windows SDK installed, or manually set compiler path in extension settings
+You must have Windows SDK or Vulkan SDK installed, or manually set compiler path in extension settings
 
 ## License
 
