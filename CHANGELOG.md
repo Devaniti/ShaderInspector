@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Progress indicator
 - Fallback to VULKAN_SDK when searching for DXC
 - macOS and Linux support (only DXC, Linux untested)
+
 ### Changed
 - Better icon
 
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FXC Support
 - Interactive compilation
 - Settings
+
 ### Changed
 - Using compilers from Windows SDK instead of Vulkan SDF
 
