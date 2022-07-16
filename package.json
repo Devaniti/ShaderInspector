@@ -2,7 +2,7 @@
 	"name": "shaderinspector",
 	"displayName": "Shader Inspector",
 	"description": "Extension to compile your shaders and view the assembly",
-	"version": "0.0.2",
+	"version": "1.0.0",
 	"engines": {
 		"vscode": "^1.69.0"
 	},
