@@ -16,7 +16,8 @@
 	"activationEvents": [
 		"onCommand:shaderinspector.compileShader",
 		"onCommand:shaderinspector.compileShaderInteractive",
-		"onCommand:shaderinspector.repeatLastCompilation"
+		"onCommand:shaderinspector.repeatLastCompilation",
+		"onCommand:shaderinspector.openWalktrough"
 	],
 	"repository": {
 		"url": "https://github.com/Devaniti/ShaderInspector",
@@ -118,7 +119,49 @@
 					"description": "Default additional args to use. Always used even when AdditionalArgs are set in the shader declaration."
 				}
 			}
-		}
+		},
+		"walkthroughs": [
+			{
+				"id": "ShaderInspectorIntroduction",
+				"title": "Introducing Shader Inspector",
+				"description": "Learn how to compile shaders with Shader Inspector",
+				"steps": [
+					{
+						"id": "compileShader",
+						"title": "Compile shader from pre-saved declaration",
+						"description": "Open shader and compile it with Alt+O.\n[Open file](command:shaderinspector.openWalktrough?1)",
+						"completionEvents": [
+							"onCommand:shaderinspector.compileShader"
+						],
+						"media": {
+							"markdown": "Walkthrough/Walkthrough1.md"
+						}
+					},
+					{
+						"id": "compileShaderInteractive",
+						"title": "Compile shader interactively",
+						"description": "Open shader and compile it with Alt+I.\n[Open file](command:shaderinspector.openWalktrough?2)",
+						"completionEvents": [
+							"onCommand:shaderinspector.compileShaderInteractive"
+						],
+						"media": {
+							"markdown": "Walkthrough/Walkthrough2.md"
+						}
+					},
+					{
+						"id": "repeatLastCompilation",
+						"title": "Edit shader and recompile",
+						"description": "Open shader, compile it with Alt+I, fix the shader and recompile it with Shift+Alt+O.\n[Open file](command:shaderinspector.openWalktrough?3)",
+						"completionEvents": [
+							"onCommand:shaderinspector.repeatLastCompilation"
+						],
+						"media": {
+							"markdown": "Walkthrough/Walkthrough3.md"
+						}
+					}
+				]
+			}
+		]
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",

@@ -7,7 +7,7 @@ BEGIN_SHADER_DECLARATIONS
             "ShaderCompiler": "dxc",
             "ShaderType": "vs",
             "ShaderModel": "6_6",
-            "EntryPoint": "VSMain",
+            "EntryPoint": "vs_main",
             "Defines": [],
             "Optimization": "3",
             "AdditionalArgs": [
@@ -21,7 +21,7 @@ BEGIN_SHADER_DECLARATIONS
             "ShaderCompiler": "dxc",
             "ShaderType": "ps",
             "ShaderModel": "6_6",
-            "EntryPoint": "PSMain",
+            "EntryPoint": "main",
             "Defines": [],
             "Optimization": "3",
             "AdditionalArgs": [
@@ -35,7 +35,7 @@ BEGIN_SHADER_DECLARATIONS
             "ShaderCompiler": "fxc",
             "ShaderType": "vs",
             "ShaderModel": "5_0",
-            "EntryPoint": "VSMain",
+            "EntryPoint": "vs_main",
             "Defines": [],
             "Optimization": "3",
             "AdditionalArgs": []
@@ -45,7 +45,7 @@ BEGIN_SHADER_DECLARATIONS
             "ShaderCompiler": "fxc",
             "ShaderType": "ps",
             "ShaderModel": "5_0",
-            "EntryPoint": "PSMain",
+            "EntryPoint": "main",
             "Defines": [],
             "Optimization": "3",
             "AdditionalArgs": []
@@ -55,9 +55,9 @@ BEGIN_SHADER_DECLARATIONS
 END_SHADER_DECLARATIONS
 */
 
-#include "GraphicsHeader.hlsli"
+#include "Header.hlsli"
 
-VSOut VSMain(VSIn In)
+VSOut vs_main(VSIn In)
 {
     VSOut Out = (VSOut)0;
     Out.position = float4(mul(In.position.xy, vertexToScreen), 1.0f, 1.0f);
@@ -65,7 +65,7 @@ VSOut VSMain(VSIn In)
     return Out;
 }
 
-PSOut PSMain(VSOut In)
+PSOut main(VSOut In)
 {
     PSOut Out = (PSOut)0;
     Out.color = In.color;

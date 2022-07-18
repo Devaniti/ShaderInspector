@@ -411,6 +411,12 @@ async function wrapErrorHandler(func: () => Promise<void>): Promise<void> {
 	})
 }
 
+async function openWalktrough(index: string): Promise<void> {
+	let filepath: string = GetExtensionPath() + "/WalkthroughShaders/Walkthrough" + index + ".hlsl"
+	let textDocument: vscode.TextDocument = await vscode.workspace.openTextDocument(filepath)
+	vscode.window.showTextDocument(textDocument)
+}
+
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -424,6 +430,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.commands.registerCommand('shaderinspector.repeatLastCompilation', () => {
 		return wrapErrorHandler(repeatLastCompilation)
+	}))
+
+	context.subscriptions.push(vscode.commands.registerCommand('shaderinspector.openWalktrough', (index: string) => {
+		return openWalktrough(index)
 	}))
 }
 
