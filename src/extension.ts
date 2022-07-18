@@ -274,6 +274,7 @@ async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Pro
 		outputWindow.reveal()
 	}
 
+	// Assigning empty line allows to restart CSS animation in case we already have html there
 	outputWindow.webview.html = ""
 	outputWindow.webview.html = TextToHTML(outputText)
 }
