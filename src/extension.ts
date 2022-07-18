@@ -259,6 +259,10 @@ async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Pro
 			outputWindow = null
 		})
 	}
+	else
+	{
+		outputWindow.reveal()
+	}
 
 	outputWindow.webview.html = TextToHTML(outputText)
 }
