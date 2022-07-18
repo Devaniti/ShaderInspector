@@ -225,7 +225,7 @@ async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Pro
 		fileName = tmpFile
 	}
 	else {
-		let saved = toCompile.textEditor.document.save()
+		let saved = await toCompile.textEditor.document.save()
 		if (!saved) {
 			vscode.window.showWarningMessage("Failed to save the file before compilation")
 		}
