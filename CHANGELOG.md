@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Walktrough
 
+### Changed
+- Output window title is now always "Shader Inspector" (since we are reusing that window for different shaders)
+
 ## [1.0.1] - 2022-07-18
 ### Added
 - Support for compiling shaders in unsaved text editor
