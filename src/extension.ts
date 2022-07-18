@@ -184,9 +184,20 @@ function TextToHTML(text: string): string {
 	let fontFamily = vscode.workspace.getConfiguration().get("editor.fontFamily");
 	let htmlHead: string =
 		`<head><style>
+@keyframes fadeInAnimation {
+	0% {
+		opacity: 0;
+	}
+	100% {
+		opacity: 1;
+	}
+}
 body {
 	font-family: ${fontFamily};
 	font-size: ${fontSize}px;
+	animation: fadeInAnimation ease-out 0.3s;
+	animation-iteration-count: 1;
+	animation-fill-mode: forwards;
 }
 </style></head>`
 	let htmlBody: string = "<body>" + ReplaceAll(ReplaceAll(text, "\r\n", "<br>"), "\n", "<br>") + "</body>"
@@ -259,11 +270,11 @@ async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Pro
 			outputWindow = null
 		})
 	}
-	else
-	{
+	else {
 		outputWindow.reveal()
 	}
 
+	outputWindow.webview.html = ""
 	outputWindow.webview.html = TextToHTML(outputText)
 }
 
