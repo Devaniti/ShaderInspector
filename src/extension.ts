@@ -1,7 +1,8 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import { execFileSync, ExecFileSyncOptions } from 'child_process'
-import { platform } from 'os'
+import { platform, tmpdir } from 'os'
+import { unlinkSync, writeFileSync } from 'fs'
 import * as vscode from 'vscode'
 
 type ShaderDeclaration =
@@ -23,7 +24,7 @@ type FileShaderDeclarations =
 
 type ShaderCompilationData =
 	{
-		fileName: string
+		textEditor: vscode.TextEditor
 		shaderDeclaration: ShaderDeclaration
 	}
 
@@ -42,15 +43,22 @@ function IsMacOS(): boolean {
 const executableExtension = IsWindows() ? ".exe" : ""
 
 const shaderDeclarationRegexp: RegExp = /BEGIN_SHADER_DECLARATIONS(?<ShaderJson>.*)END_SHADER_DECLARATIONS/s
-const winSDKSearchCommand = '((for /f "usebackq tokens=*" %i in (`"%ProgramFiles(x86)%/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products * -property installationPath`) do (set VSDetectedDir=%i) && (call "%VSDetectedDir%/Common7/Tools/VsDevCmd.bat" > nul)) > nul) && (cmd /c echo %WindowsSdkVerBinPath%)'
 
 let cachedWindowsSDKPath = ""
 let outputWindow: vscode.WebviewPanel | null = null
 
-async function WrapExec(title: string, command: string, args: Array<string>, options?: ExecFileSyncOptions): Promise<string> {
+async function WrapExec(title: string, command: string, args?: Array<string>, options?: ExecFileSyncOptions): Promise<string> {
 	return await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: title }, async () => {
 		return execFileSync(command, args, options).toString()
 	})
+}
+
+function GetSetting(settingName: string): string {
+	return vscode.workspace.getConfiguration().get('DmytroBulatov.shaderinspector.' + settingName) ?? ""
+}
+
+function GetExtensionPath(): string {
+	return vscode.extensions.getExtension("DmytroBulatov.shaderinspector")?.extensionPath ?? ""
 }
 
 async function GetWindowsSDKPath(): Promise<string> {
@@ -60,7 +68,8 @@ async function GetWindowsSDKPath(): Promise<string> {
 
 	let outputText: string = ""
 	try {
-		outputText = await WrapExec("Searching for windows SDK.", winSDKSearchCommand, [], { shell: true })
+		let extensionPath = GetExtensionPath()
+		outputText = await WrapExec("Searching for windows SDK.", extensionPath + "/FindWindowsSDK.bat")
 	}
 	catch (err) {
 		if (err instanceof Error) {
@@ -78,10 +87,6 @@ function GetVulkanSDK(): string {
 	return process.env.VULKAN_SDK ? process.env.VULKAN_SDK + "/bin" : ""
 }
 
-function GetSetting(settingName: string): string {
-	return vscode.workspace.getConfiguration().get('DmytroBulatov.shaderinspector.' + settingName) ?? ""
-}
-
 async function GetDXCPath(): Promise<string> {
 	let configPath: string = GetSetting('customDXCPath')
 	if (configPath != null && configPath != "") return configPath
@@ -96,7 +101,7 @@ async function GetFXCPath(): Promise<string> {
 	let configPath: string = GetSetting('customFXCPath')
 	if (configPath != null && configPath != "") return configPath
 	let winSDKPath = await GetWindowsSDKPath()
-	if (winSDKPath != "") return winSDKPath + "x64/dxc" + executableExtension
+	if (winSDKPath != "") return winSDKPath + "x64/fxc" + executableExtension
 	throw Error("Cannot automatically find FXC. Please specify FXC path in settings.")
 }
 
@@ -199,6 +204,23 @@ async function repeatLastCompilation(): Promise<void> {
 }
 
 async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Promise<void> {
+
+	let tmpFile: string = ""
+	let fileName: string = ""
+
+	if (toCompile.textEditor.document.isUntitled) {
+		tmpFile = tmpdir() + "/ShaderInspector.hlsl"
+		writeFileSync(tmpFile, toCompile.textEditor.document.getText())
+		fileName = tmpFile
+	}
+	else {
+		let saved = toCompile.textEditor.document.save()
+		if (!saved) {
+			vscode.window.showWarningMessage("Failed to save the file before compilation")
+		}
+		fileName = toCompile.textEditor.document.fileName
+	}
+
 	lastCompiled = toCompile
 
 	toCompile.shaderDeclaration = FillDefaultParameters(toCompile.shaderDeclaration)
@@ -208,7 +230,7 @@ async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Pro
 			"-nologo",
 			"-T" + toCompile.shaderDeclaration.ShaderType + "_" + toCompile.shaderDeclaration.ShaderModel,
 			"-O" + toCompile.shaderDeclaration.Optimization,
-			toCompile.fileName
+			fileName
 		]
 	if (toCompile.shaderDeclaration.EntryPoint) args.push("-E" + toCompile.shaderDeclaration.EntryPoint)
 	args = args.concat(toCompile.shaderDeclaration.Defines?.map(def => "-D" + def) ?? [])
@@ -223,6 +245,10 @@ async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Pro
 		if (err instanceof Error) {
 			outputText = err.message
 		}
+	}
+
+	if (tmpFile != "") {
+		unlinkSync(tmpFile)
 	}
 
 	outputText = compilerPath + " " + args.join(" ") + "\r\n\r\n" + outputText
@@ -293,10 +319,12 @@ async function compileFileInteractive(): Promise<void> {
 		addShaderDeclaration(textEditor, shaderDeclaration)
 	}
 
-	return compileFileFromDeclaration({ fileName: textEditor.document.fileName, shaderDeclaration: shaderDeclaration })
+	return compileFileFromDeclaration({ textEditor: textEditor, shaderDeclaration: shaderDeclaration })
 }
 
-async function compileFileFromText(fullPath: string, shaderText: string): Promise<void> {
+async function compileFileFromText(textEditor: vscode.TextEditor): Promise<void> {
+	let shaderText = textEditor.document.getText()
+
 	let shaderDeclarationMatch: RegExpMatchArray | null = shaderText.match(shaderDeclarationRegexp)
 	if (shaderDeclarationMatch == null)
 		return compileFileInteractive()
@@ -317,7 +345,7 @@ async function compileFileFromText(fullPath: string, shaderText: string): Promis
 		throw Error("Missing shader declarations.")
 
 	if (shaderDeclaration.Shaders.length == 1)
-		return compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: shaderDeclaration.Shaders[0] })
+		return compileFileFromDeclaration({ textEditor: textEditor, shaderDeclaration: shaderDeclaration.Shaders[0] })
 
 	let shaderOptions: Array<ShaderQuickPick> = []
 	let i: number = 0
@@ -346,7 +374,7 @@ async function compileFileFromText(fullPath: string, shaderText: string): Promis
 		if (selection == null) {
 			return
 		}
-		return compileFileFromDeclaration({ fileName: fullPath, shaderDeclaration: shaderDeclaration.Shaders[selection.index] })
+		return compileFileFromDeclaration({ textEditor: textEditor, shaderDeclaration: shaderDeclaration.Shaders[selection.index] })
 	})
 }
 
@@ -357,10 +385,7 @@ async function compileCurrentFile(): Promise<void> {
 	if (vscode.window.activeTextEditor.document.languageId != 'hlsl')
 		throw Error('Wrond document language. HLSL expected.')
 
-	let shaderFileName: string = vscode.window.activeTextEditor.document.fileName
-	let shaderCode: string = vscode.window.activeTextEditor.document.getText()
-
-	return compileFileFromText(shaderFileName, shaderCode)
+	return compileFileFromText(vscode.window.activeTextEditor)
 }
 
 async function wrapErrorHandler(func: () => Promise<void>): Promise<void> {
