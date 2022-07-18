@@ -265,7 +265,7 @@ async function compileFileFromDeclaration(toCompile: ShaderCompilationData): Pro
 	outputText = compilerPath + " " + args.join(" ") + "\r\n\r\n" + outputText
 
 	if (outputWindow == null) {
-		outputWindow = vscode.window.createWebviewPanel(toCompile.shaderDeclaration.ShaderName, toCompile.shaderDeclaration.ShaderName, vscode.ViewColumn.One)
+		outputWindow = vscode.window.createWebviewPanel("ShaderInspector", "Shader Inspector", vscode.ViewColumn.One)
 		outputWindow.onDidDispose(() => {
 			outputWindow = null
 		})
