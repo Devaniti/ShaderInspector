@@ -1,0 +1,55 @@
+/*
+BEGIN_SHADER_DECLARATIONS
+{
+    "Shaders": [
+        {
+            "ShaderName": "DebugVS",
+            "ShaderCompiler": "dxc",
+            "ShaderType": "vs",
+            "ShaderModel": "6_6",
+            "EntryPoint": "vs_main",
+            "Defines": [],
+            "Optimization": "3",
+            "AdditionalArgs": [
+                "-spirv",
+                "-HV 2018",
+                "-all-resources-bound",
+                "-enable-16bit-types"
+            ]
+        },
+        {
+            "ShaderName": "DebugPS",
+            "ShaderCompiler": "dxc",
+            "ShaderType": "ps",
+            "ShaderModel": "6_6",
+            "EntryPoint": "main",
+            "Defines": [],
+            "Optimization": "3",
+            "AdditionalArgs": [
+                "-spirv",
+                "-HV 2018",
+                "-all-resources-bound",
+                "-enable-16bit-types"
+            ]
+        }
+    ]
+}
+END_SHADER_DECLARATIONS
+*/
+
+#include "Header.hlsli"
+
+VSOut vs_main(VSIn In)
+{
+    VSOut Out = (VSOut)0;
+    Out.position = float4(mul(In.position.xy, vertexToScreen), 1.0f, 1.0f);
+    Out.color = In.color;
+    return Out;
+}
+
+PSOut main(VSOut In)
+{
+    PSOut Out = (PSOut)0;
+    Out.color = In.color;
+    return Out;
+}

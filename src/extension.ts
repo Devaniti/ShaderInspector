@@ -87,17 +87,21 @@ function getVulkanSDK(): string {
 	return process.env.VULKAN_SDK ? process.env.VULKAN_SDK + "/bin" : "";
 }
 
-async function getDXCPath(): Promise<string> {
+async function getDXCPath(shaderDeclaration: ShaderDeclaration): Promise<string> {
 	let configPath: string = getSetting('customDXCPath');
 	if (configPath !== null && configPath !== "") {return configPath;};
-	let winSDKPath = await getWindowsSDKPath();
-	if (winSDKPath !== "") {return winSDKPath + "x64/dxc" + executableExtension;};
+	// skip WinSDK if target is SPIR-V, since WinSDK's DXC doesn't support SPIR-V
+	if (!(shaderDeclaration.AdditionalArgs?.includes("-spirv")))
+	{
+		let winSDKPath = await getWindowsSDKPath();
+		if (winSDKPath !== "") {return winSDKPath + "x64/dxc" + executableExtension;};
+	}
 	let vulkanSDKPath = getVulkanSDK();
 	if (vulkanSDKPath !== "") {return vulkanSDKPath + "/dxc" + executableExtension;};
 	throw Error("Cannot automatically find DXC. Please specify DXC path in settings.");
 }
 
-async function getFXCPath(): Promise<string> {
+async function getFXCPath(shaderDeclaration: ShaderDeclaration): Promise<string> {
 	let configPath: string = getSetting('customFXCPath');
 	if (configPath !== null && configPath !== "") {return configPath;};
 	let winSDKPath = await getWindowsSDKPath();
@@ -107,8 +111,8 @@ async function getFXCPath(): Promise<string> {
 
 async function getCompilerPath(shaderDeclaration: ShaderDeclaration): Promise<string> {
 	switch (shaderDeclaration.ShaderCompiler) {
-		case "dxc": return getDXCPath();
-		case "fxc": return getFXCPath();
+		case "dxc": return getDXCPath(shaderDeclaration);
+		case "fxc": return getFXCPath(shaderDeclaration);
 		default: throw Error("Unknown shader compiler: " + shaderDeclaration.ShaderCompiler);
 	}
 }

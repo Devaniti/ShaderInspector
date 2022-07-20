@@ -158,6 +158,14 @@
 						"media": {
 							"markdown": "Walkthrough/Walkthrough3.md"
 						}
+					},
+					{
+						"id": "SPIR-V",
+						"title": "Compile to SPIR-V",
+						"description": "Open shader, compile it with Alt+O, Observe compiled SPIR-V assembly.\n[Open file](command:shaderinspector.openWalktrough?4)",
+						"media": {
+							"markdown": "Walkthrough/Walkthrough4.md"
+						}
 					}
 				]
 			}
